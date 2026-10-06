@@ -1,0 +1,2 @@
+# Vite's local dependency optimizer cache
+node_modules/.vite/

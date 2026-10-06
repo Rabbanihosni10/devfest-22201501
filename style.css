@@ -12,6 +12,52 @@
 body { min-width: 320px; min-height: 100vh; margin: 0; background: #f8fafc; }
 button, input, select { font: inherit; }
 
+.app-shell { position: relative; isolation: isolate; }
+.app-shell::before, .app-shell::after { position: fixed; z-index: -1; width: 26rem; height: 26rem; border-radius: 9999px; content: ""; pointer-events: none; filter: blur(70px); opacity: .22; }
+.app-shell::before { top: -10rem; left: -9rem; background: #a5b4fc; animation: ambient-drift 22s ease-in-out infinite alternate; }
+.app-shell::after { right: -11rem; bottom: -12rem; background: #99f6e4; animation: ambient-drift 27s ease-in-out infinite alternate-reverse; }
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes logo-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-4px) rotate(-1deg); }
+}
+
+@keyframes ambient-drift {
+  from { transform: translate3d(-2rem, -1rem, 0) scale(.92); }
+  to { transform: translate3d(3rem, 2rem, 0) scale(1.12); }
+}
+
+@keyframes row-enter {
+  from { opacity: 0; transform: translateY(12px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes status-pop {
+  0% { opacity: .45; transform: scale(.88); }
+  65% { opacity: 1; transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.page-enter { animation: page-enter 650ms cubic-bezier(.2,.75,.25,1) both; }
+.brand-logo { animation: logo-float 5.5s ease-in-out infinite; }
+.file-row, .requirement-row { animation: row-enter 420ms cubic-bezier(.2,.75,.25,1) both; animation-delay: calc(var(--row-index, 0) * 45ms); }
+.requirement-row { transition: transform 180ms ease, box-shadow 180ms ease; }
+.requirement-row:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -18px rgb(15 23 42 / 45%); }
+.status-pop { display: inline-flex; transform-origin: left center; animation: status-pop 280ms cubic-bezier(.2,.75,.25,1) both; }
+.spinner { width: .95rem; height: .95rem; flex: none; border: 2px solid #c7d2fe; border-top-color: #4f46e5; border-radius: 9999px; animation: spin 700ms linear infinite; }
+.button-primary:active, .button-secondary:active, .button-danger:active { transform: scale(.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
 @layer components {
   .card { @apply rounded-2xl border border-slate-200 bg-white shadow-sm; }
   .button-primary { @apply inline-flex min-h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2; }

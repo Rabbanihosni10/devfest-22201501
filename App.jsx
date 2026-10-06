@@ -1,10 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { generatePackage } from './generatePackage';
 import './style.css';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const MAX_FILES = 30;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
@@ -25,6 +21,7 @@ const text = {
     badPdf: 'File is damaged or password protected',
     fileLimit: 'The upload limit is 30 files.', sizeLimit: 'The total upload size cannot exceed 50 MB.',
     fileTooLarge: 'This file would exceed the 50 MB total upload limit.',
+    readerError: 'The PDF reader could not be loaded. Please refresh and try again.',
     readError: 'Could not read this file.', uploadFailed: 'Could not process the selected files.',
     duplicateBlock: 'Identical PDF contents cannot be matched to different requirements.',
     matchMissing: 'Missing', expiryNeeded: 'Expiry date needed', expired: 'Expired', notProvided: 'Not provided', ok: 'OK',
@@ -45,6 +42,7 @@ const text = {
     badPdf: 'ফাইলটি নষ্ট অথবা পাসওয়ার্ড-সুরক্ষিত',
     fileLimit: 'সর্বোচ্চ ৩০টি ফাইল আপলোড করা যাবে।', sizeLimit: 'মোট আপলোড ৫০ MB-এর বেশি হতে পারবে না।',
     fileTooLarge: 'এই ফাইলটি যোগ করলে মোট আপলোড ৫০ MB ছাড়িয়ে যাবে।',
+    readerError: 'PDF পাঠক লোড করা যায়নি। রিফ্রেশ করে আবার চেষ্টা করুন।',
     readError: 'এই ফাইলটি পড়া যায়নি।', uploadFailed: 'নির্বাচিত ফাইলগুলো প্রক্রিয়া করা যায়নি।',
     duplicateBlock: 'একই PDF-এর বিষয়বস্তু একাধিক কাগজের সাথে মেলানো যাবে না।',
     matchMissing: 'অনুপস্থিত', expiryNeeded: 'মেয়াদ প্রয়োজন', expired: 'মেয়াদোত্তীর্ণ', notProvided: 'দেওয়া হয়নি', ok: 'ঠিক আছে',
@@ -175,6 +173,15 @@ function App() {
     setUploadBusy(true);
     setUploadMessages([]);
     const parsed = [];
+    let pdfjsLib;
+    try {
+      pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
+    } catch {
+      setUploadMessages([...messages, t.readerError]);
+      setUploadBusy(false);
+      return;
+    }
     for (const file of accepted) {
       try {
         const buffer = await file.arrayBuffer();
@@ -249,13 +256,20 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-7 text-slate-900 sm:px-6 sm:py-10 lg:px-8" lang={language}>
-      <div className="mx-auto max-w-5xl">
+    <main className="app-shell min-h-screen px-4 py-7 text-slate-900 sm:px-6 sm:py-10 lg:px-8" lang={language}>
+      <div className="page-enter mx-auto max-w-5xl">
         <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="mb-2 text-xs font-bold tracking-[0.2em] text-indigo-700">{t.eyebrow}</p>
-            <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{t.title}</h1>
-            <p className="mt-2 text-sm text-slate-600 sm:text-base">{t.subtitle}</p>
+          <div className="flex min-w-0 items-center gap-4">
+            <img
+              src="/company-logo.png"
+              alt="Meghna Tech Solutions logo"
+              className="brand-logo h-14 w-14 shrink-0 rounded-2xl shadow-md sm:h-16 sm:w-16"
+            />
+            <div className="min-w-0">
+              <p className="mb-2 text-xs font-bold tracking-[0.2em] text-indigo-700">{t.eyebrow}</p>
+              <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{t.title}</h1>
+              <p className="mt-2 text-sm text-slate-600 sm:text-base">{t.subtitle}</p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
             <button type="button" onClick={() => setLanguage((current) => current === 'en' ? 'bn' : 'en')} className="button-secondary">
@@ -279,12 +293,12 @@ function App() {
               <input type="file" accept="application/pdf,.pdf" multiple disabled={uploadBusy || packageBusy} onChange={uploadPdfs} className="sr-only" />
             </label>
           </div>
-          {uploadBusy && <p role="status" className="mb-3 text-sm font-medium text-indigo-700">Reading PDF files…</p>}
+          {uploadBusy && <p role="status" className="upload-progress mb-3 flex items-center gap-2 text-sm font-medium text-indigo-700"><span className="spinner" aria-hidden="true" />Reading PDF files…</p>}
           {uploadMessages.map((message, index) => <Alert key={`${message}-${index}`}>{message}</Alert>)}
           {files.length > 0 && (
             <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
-              {files.map((file) => (
-                <li key={file.id} className="flex min-w-0 flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              {files.map((file, index) => (
+                <li key={file.id} style={{ '--row-index': Math.min(index, 12) }} className="file-row flex min-w-0 flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="break-all font-semibold text-slate-800">{file.name}</p>
                     <p className="mt-1 text-sm text-slate-500">{file.pageCount} {t.pages} · {(file.size / 1024 / 1024).toFixed(2)} MB</p>
@@ -324,9 +338,11 @@ function App() {
                   <h2 className="text-xl font-bold">{t.requirements}</h2>
                   <p className="mt-1 text-sm text-slate-500">{requirements.length} {t.documents}</p>
                 </div>
+                <div>
                 <button type="button" onClick={autoMatch} disabled={!files.length || !requirements.length} className="button-secondary disabled:cursor-not-allowed disabled:opacity-50">
                   {t.autoMatch}
                 </button>
+                </div>
               </div>
               {requirements.length ? (
                 <ul className="space-y-3">
@@ -339,7 +355,7 @@ function App() {
                       .map(([, fileId]) => fileById.get(fileId)?.hash)
                       .filter(Boolean));
                     return (
-                      <li key={requirement.id ?? `${requirement.order}-${index}`} className="card flex min-w-0 flex-col gap-5 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+                      <li key={requirement.id ?? `${requirement.order}-${index}`} style={{ '--row-index': Math.min(index, 12) }} className="card requirement-row flex min-w-0 flex-col gap-5 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex min-w-0 items-start gap-3 sm:gap-4 lg:flex-1">
                           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-sm font-bold text-indigo-700">
                             {String(requirement.order ?? index + 1).padStart(2, '0')}
@@ -379,7 +395,7 @@ function App() {
                           )}
                           <div>
                             <p className="field-label mb-1">{t.status}</p>
-                            <span className={blocking ? 'badge-danger' : status === 'OK' ? 'badge-success' : 'badge-neutral'}>{statusLabel(status, t)}</span>
+                            <span key={status} className={`status-pop ${blocking ? 'badge-danger' : status === 'OK' ? 'badge-success' : 'badge-neutral'}`}>{statusLabel(status, t)}</span>
                           </div>
                         </div>
                       </li>

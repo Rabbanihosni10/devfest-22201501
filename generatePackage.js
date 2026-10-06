@@ -1,6 +1,5 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-
 const PAGE_SIZE = [595.28, 841.89]; // A4 points
+const FOOTER_RESERVE = 26;
 
 /**
  * Build and download a tender PDF package.
@@ -9,7 +8,7 @@ const PAGE_SIZE = [595.28, 841.89]; // A4 points
  * uploadedFiles entry's `id`. Each uploadedFiles entry must include its
  * original browser File at `file`.
  */
-export async function generatePackage(tender, matchedRequirements, uploadedFiles) {
+export async function generatePackage(tender, matchedRequirements, uploadedFiles, { download = true } = {}) {
   if (!tender?.tender_id) throw new Error('Tender ID is required to generate the package.');
   if (!Array.isArray(matchedRequirements) || !Array.isArray(uploadedFiles)) {
     throw new Error('Requirements and uploaded files must be arrays.');
@@ -34,8 +33,16 @@ export async function generatePackage(tender, matchedRequirements, uploadedFiles
     }
     return [{ requirement, uploaded }];
   });
+  const includedHashes = new Set();
+  for (const { uploaded } of included) {
+    if (includedHashes.has(uploaded.hash)) {
+      throw new Error('Identical PDF contents cannot be included for different requirements.');
+    }
+    includedHashes.add(uploaded.hash);
+  }
 
   try {
+    const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
     const packagePdf = await PDFDocument.create();
     const cover = packagePdf.addPage(PAGE_SIZE);
     const font = await packagePdf.embedFont(StandardFonts.Helvetica);
@@ -135,7 +142,13 @@ export async function generatePackage(tender, matchedRequirements, uploadedFiles
         throw new Error(`Could not read “${uploaded.name || requirement.title_en || requirement.id}” as a PDF: ${error.message}`);
       }
       const copiedPages = await packagePdf.copyPages(sourcePdf, sourcePdf.getPageIndices());
-      copiedPages.forEach((page) => packagePdf.addPage(page));
+      copiedPages.forEach((page) => {
+        // Create a footer band and move the original artwork upward so the
+        // footer remains readable without covering existing page content.
+        page.translateContent(0, FOOTER_RESERVE);
+        page.setSize(page.getWidth(), page.getHeight() + FOOTER_RESERVE);
+        packagePdf.addPage(page);
+      });
     }
 
     // --- 6.3 & 6.4 Add Footer to EVERY page (including cover) ---
@@ -147,7 +160,7 @@ export async function generatePackage(tender, matchedRequirements, uploadedFiles
       
       page.drawText(footer, {
         x: (page.getWidth() - footerWidth) / 2, // Centered
-        y: 30, // <-- CORRECTED: Changed from 12 to 30 to prevent clipping at the bottom edge
+        y: 8,
         size: footerSize,
         font,
         color: muted,
@@ -156,7 +169,7 @@ export async function generatePackage(tender, matchedRequirements, uploadedFiles
 
     // --- Save and Download ---
     const bytes = await packagePdf.save();
-    downloadPdf(bytes, `${safeFilename(tender.tender_id)}_Package.pdf`);
+    if (download) downloadPdf(bytes, `${safeFilename(tender.tender_id)}_Package.pdf`);
     return bytes;
   } catch (error) {
     throw new Error(`Package generation failed: ${error.message || 'Unknown error'}`, { cause: error });
